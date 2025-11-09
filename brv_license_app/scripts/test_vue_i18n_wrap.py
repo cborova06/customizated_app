@@ -10,6 +10,7 @@ from __future__ import annotations
 import os
 import pathlib
 import tempfile
+import textwrap
 import unittest
 from typing import Tuple
 
@@ -279,6 +280,23 @@ data = {"label": "Name"}
         # Should only have one import line
         self.assertEqual(result.count("from frappe import _"), 1)
 
+    def test_hd_ticket_like_dicts_skip_unsafe_keys(self):
+        """Mirror hd_ticket.py: wrap labels but leave options/default untouched."""
+        py = textwrap.dedent(
+            '''
+            columns = [
+                {"label": "Status", "fieldname": "status", "options": "Open"},
+                {"label": "Priority", "default": "Low"}
+            ]
+            '''
+        )
+        cfg = PyWrapConfig(func="_", keys=("label", "options", "default"), inject_import=False)
+        result = process_python_code(py, cfg)
+        self.assertIn('_("Status")', result)
+        self.assertIn('_("Priority")', result)
+        self.assertIn('"options": "Open"', result)
+        self.assertIn('"default": "Low"', result)
+
 
 class TestVueFileProcessing(unittest.TestCase):
     """Test complete Vue file processing."""
@@ -332,6 +350,74 @@ const config = { label: 'Second' };
         self.assertIn('Text', result)
         self.assertIn('First', result)
         self.assertIn('Second', result)
+
+    def test_tickets_vue_snippet_gets_wrapped_and_imported_once(self):
+        """Use a Tickets.vue-like snippet to assert wrapping + import injection."""
+        vue = textwrap.dedent(
+            '''
+            <template>
+              <div>
+                <LayoutHeader>
+                  <template #left-header>
+                    <ViewBreadcrumbs label="Tickets" />
+                  </template>
+                  <template #right-header>
+                    <Button label="Create" theme="gray" variant="solid">
+                      <template #prefix>
+                        <LucidePlus class="h-4 w-4" />
+                      </template>
+                    </Button>
+                  </template>
+                </LayoutHeader>
+              </div>
+            </template>
+
+            <script setup lang="ts">
+            import { LayoutHeader } from "@/components";
+            import { Badge } from "frappe-ui";
+
+            const options = {
+              emptyState: {
+                title: "No Tickets Found"
+              },
+              selectBannerActions: [
+                { label: "Export" }
+              ]
+            };
+            </script>
+            '''
+        )
+        result = process_vue_file(vue, ["label", "title"], ["label", "title"])
+        self.assertIn(':label="__(\'Tickets\')"', result)
+        self.assertIn(':label="__(\'Create\')"', result)
+        self.assertIn("__('No Tickets Found')", result)
+        self.assertIn("__('Export')", result)
+        self.assertEqual(result.count('import { __ } from "@/translation";'), 1)
+
+    def test_import_prefers_setup_block_when_present(self):
+        """Ensure import is inserted into <script setup> only."""
+        vue = textwrap.dedent(
+            '''
+            <template>
+              <div label="Tickets"></div>
+            </template>
+
+            <script>
+            export const meta = { label: "Meta" };
+            </script>
+
+            <script setup>
+            const state = { label: "Visible" };
+            </script>
+            '''
+        )
+        result = process_vue_file(vue, ["label"], ["label"])
+        self.assertEqual(result.count('import { __ } from "@/translation";'), 1)
+        script_blocks = result.split("<script>")
+        legacy_block = script_blocks[1].split("</script>")[0]
+        self.assertNotIn('import { __ } from "@/translation";', legacy_block)
+        setup_block = result.split("<script setup>")[1].split("</script>")[0]
+        self.assertIn('import { __ } from "@/translation";', setup_block)
 
 
 class TestNormalization(unittest.TestCase):

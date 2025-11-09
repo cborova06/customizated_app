@@ -79,19 +79,19 @@ from __future__ import annotations
 import argparse
 import concurrent.futures as cf
 import dataclasses
+import datetime
 import difflib
 import fnmatch
 import hashlib
 import io
 import json
+import logging
 import os
 import pathlib
 import re
 import shutil
 import sys
 import tempfile
-import logging
-import datetime
 from typing import Iterable, List, Optional, Pattern, Tuple
 
 # ── Shared ─────────────────────────────────────────────────────────────────────
@@ -341,8 +341,18 @@ def _inject_vue_import(text: str) -> str:
 	if _has_translation_import(text, VUE_TRANSLATION_MODULE_PATTERN):
 		return text
 
+	has_setup_script = bool(re.search(r"<script[^>]*\bsetup\b", text, re.I))
+	injected = False
+
 	def inject_in_script(m: re.Match) -> str:
+		nonlocal injected
 		start, inner, end = m.group(1), m.group(2), m.group(3)
+
+		if injected:
+			return m.group(0)
+
+		if has_setup_script and "setup" not in start.lower():
+			return m.group(0)
 		
 		# Double-check import doesn't exist in this script block
 		if _has_translation_import(inner, VUE_TRANSLATION_MODULE_PATTERN):
@@ -389,6 +399,7 @@ def _inject_vue_import(text: str) -> str:
 			lines.insert(insert_idx, 'import { __ } from "@/translation";')
 		
 		new_inner = '\n'.join(lines)
+		injected = True
 		return f"{start}{new_inner}{end}"
 	
 	return SCRIPT_BLOCK_RE.sub(inject_in_script, text)
@@ -851,6 +862,36 @@ class WorkItem:
 	path: pathlib.Path
 
 
+@dataclasses.dataclass
+class BackupManager:
+	base: pathlib.Path
+	root: pathlib.Path
+	enabled: bool = True
+	run_dir: pathlib.Path = dataclasses.field(init=False)
+
+	def __post_init__(self) -> None:
+		self.base = self.base.resolve()
+		if not self.root.is_absolute():
+			self.root = (self.base / self.root).resolve()
+		else:
+			self.root = self.root.resolve()
+		timestamp = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+		self.run_dir = self.root / f"run-{timestamp}"
+		if self.enabled:
+			self.run_dir.mkdir(parents=True, exist_ok=True)
+
+	def write(self, target: pathlib.Path, original_text: str) -> None:
+		if not self.enabled:
+			return
+		try:
+			rel = target.resolve().relative_to(self.base)
+		except Exception:
+			rel = pathlib.Path(target.name)
+		dest = self.run_dir / rel
+		dest.parent.mkdir(parents=True, exist_ok=True)
+		atomic_write(dest, original_text)
+
+
 def is_ignored(base: pathlib.Path, path: pathlib.Path, ignore_globs: List[str]) -> bool:
 	try:
 		rel = str(path.relative_to(base)).replace("\\", "/")
@@ -928,6 +969,7 @@ def process_file(
 	normalize: bool = False,
 	wrap_tags: Optional[Iterable[str]] = None,
 	wrap_toast: bool = False,
+	backup_manager: Optional[BackupManager] = None,
 ) -> Tuple[int, Optional[str]]:
 	# Safety checks: skip symlinks and very large files (configurable)
 	try:
@@ -939,7 +981,7 @@ def process_file(
 		return 0, None
 
 	try:
-		if max_file_size is not None and p.stat().st_size > max_file_size:
+		if max_file_size and max_file_size > 0 and p.stat().st_size > max_file_size:
 			logger.warning("Skipping large file (> %d bytes): %s", max_file_size, p)
 			return 0, None
 	except OSError:
@@ -1007,7 +1049,12 @@ def process_file(
 			return 1, diff
 		else:
 			if not no_backup:
-				backup_name = f"{p.name}.{hashlib.sha1(text.encode('utf-8')).hexdigest()[:8]}.bak"
+				if backup_manager is not None:
+					try:
+						backup_manager.write(p, orig_text)
+					except Exception as exc:
+						logger.warning("Failed to capture structured backup for %s: %s", p, exc)
+				backup_name = f"{p.name}.{hashlib.sha1(orig_text.encode('utf-8')).hexdigest()[:8]}.bak"
 				backup_path = p.with_name(backup_name)
 				try:
 					# Preserve permissions for backup
@@ -1016,7 +1063,7 @@ def process_file(
 						orig_mode = p.stat().st_mode & 0o777
 					except OSError:
 						orig_mode = None
-					atomic_write(backup_path, text)
+					atomic_write(backup_path, orig_text)
 					if orig_mode is not None:
 						try:
 							os.chmod(str(backup_path), orig_mode)
@@ -1320,6 +1367,14 @@ def run(args: argparse.Namespace) -> int:
 	changed = 0
 	diffs: List[str] = []
 
+	backup_manager: Optional[BackupManager] = None
+	if not args.dry_run and not args.no_backup:
+		if getattr(args, "backup_root", None):
+			backup_root = pathlib.Path(args.backup_root).expanduser()
+		else:
+			backup_root = base / ".i18n_backups"
+		backup_manager = BackupManager(base=base, root=backup_root, enabled=True)
+
 	wrap_tags = None
 	if hasattr(args, 'wrap_tag_content') and args.wrap_tag_content:
 		wrap_tags = tuple([t.strip() for t in args.wrap_tag_content.split(",") if t.strip()])
@@ -1343,6 +1398,7 @@ def run(args: argparse.Namespace) -> int:
 				normalize=getattr(args, 'normalize', False),
 				wrap_tags=wrap_tags,
 				wrap_toast=wrap_toast,
+				backup_manager=backup_manager,
 			)
 		except Exception as e:
 			# Log and continue other files — robust against single-file failures
@@ -1370,6 +1426,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
 	ap.add_argument("--js-keys", default="label,title,placeholder,tooltip,aria-label,ariaLabel,description", help="Script-side property keys (comma-separated)")
 	ap.add_argument("--dry-run", action="store_true", help="Report only; no writes")
 	ap.add_argument("--no-backup", action="store_true", help="Do not write .bak backups")
+	ap.add_argument("--backup-root", help="Directory where structured backups for each run are stored (default: TARGET/.i18n_backups)")
 	ap.add_argument("--ignore", action="append", default=[], help="Glob patterns to exclude (repeatable)")
 	ap.add_argument("--threads", type=int, default=os.cpu_count() or 4, help="Parallel file workers")
 	ap.add_argument("--diff", action="store_true", help="Print unified diff for changes (with --dry-run)")
