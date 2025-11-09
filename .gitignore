@@ -1,0 +1,14 @@
+*.pyc
+__pycache__/
+*.log
+node_modules/
+dist/
+.eggs/
+*.egg-info/
+.DS_Store
+.env
+*.sqlite3
+# frappe/bench artefaktları
+*.min.js
+*.min.css
+public/js/*.map
