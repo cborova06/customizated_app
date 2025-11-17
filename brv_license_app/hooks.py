@@ -32,12 +32,16 @@ boot_session = "brv_license_app.overrides.boot_session"
 
 # İzin/allowlist — License Settings'in çalışabilmesi için gerekli standart endpointler
 license_allowlist_paths = [
+    "/app",  # Desk shell (SPA index) – gerekli
     "/login",
     "/api/method/login",
     "/api/method/logout",
     "/api/method/ping",
     "/api/method/frappe.boot.get_bootinfo",
     "/api/method/frappe.desk.desk.get_desk_sidebar",
+    "/api/method/frappe.desk.form.meta.get_meta",
+    "/api/method/frappe.client.get",
+    "/api/method/frappe.client.get_value",
     "/assets/",
     "/app/license-settings",  # License Settings sayfası
     "/api/method/brv_license_app.api.license.healthz",
