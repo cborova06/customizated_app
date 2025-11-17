@@ -18,7 +18,7 @@ from typing import Tuple
 import sys
 sys.path.insert(0, str(pathlib.Path(__file__).parent))
 
-from vue_i18n_wrap import (
+from i18n_wrap import (
     process_template,
     process_js_code,
     process_python_code,
@@ -31,6 +31,11 @@ from vue_i18n_wrap import (
     atomic_write,
     wrap_toast_messages,
     _inject_ts_import,
+    wrap_p_content,
+    wrap_span_content,
+    is_ignored,
+    build_arg_parser,
+    run as run_cli,
 )
 
 
@@ -556,14 +561,14 @@ class TestButtonTextWrapping(unittest.TestCase):
         """Test wrapping simple Button inner text."""
         html = '<Button>Send Invites</Button>'
         # Import will be added later
-        from vue_i18n_wrap import wrap_tag_content
+        from i18n_wrap import wrap_tag_content
         result = wrap_tag_content(html, ["Button"])
         self.assertIn('{{ __("Send Invites") }}', result)
     
     def test_button_with_spaces(self):
         """Test Button text with leading/trailing spaces."""
         html = '<Button> Clear All </Button>'
-        from vue_i18n_wrap import wrap_tag_content
+        from i18n_wrap import wrap_tag_content
         result = wrap_tag_content(html, ["Button"])
         self.assertIn('{{ __("Clear All") }}', result)
     
@@ -572,21 +577,21 @@ class TestButtonTextWrapping(unittest.TestCase):
         html = '''<Button
           >Send Invites
         </Button>'''
-        from vue_i18n_wrap import wrap_tag_content
+        from i18n_wrap import wrap_tag_content
         result = wrap_tag_content(html, ["Button"])
         self.assertIn('{{ __("Send Invites") }}', result)
     
     def test_already_wrapped_button_skipped(self):
         """Test that already wrapped Button text is not double-wrapped."""
         html = '<Button>{{ __("Already Wrapped") }}</Button>'
-        from vue_i18n_wrap import wrap_tag_content
+        from i18n_wrap import wrap_tag_content
         result = wrap_tag_content(html, ["Button"])
         self.assertEqual(result.count("__("), 1)
     
     def test_button_with_icon_only(self):
         """Test Button with icon attribute only (no text)."""
         html = '<Button icon="x" />'
-        from vue_i18n_wrap import wrap_tag_content
+        from i18n_wrap import wrap_tag_content
         result = wrap_tag_content(html, ["Button"])
         # Should not change
         self.assertEqual(result, html)
@@ -594,7 +599,7 @@ class TestButtonTextWrapping(unittest.TestCase):
     def test_button_with_interpolation_skipped(self):
         """Test Button with existing interpolation."""
         html = '<Button>{{ count }}</Button>'
-        from vue_i18n_wrap import wrap_tag_content
+        from i18n_wrap import wrap_tag_content
         result = wrap_tag_content(html, ["Button"])
         # Should not wrap existing interpolation
         self.assertNotIn('__("{{ count }}")', result)
@@ -602,7 +607,7 @@ class TestButtonTextWrapping(unittest.TestCase):
     def test_button_with_nested_elements_skipped(self):
         """Test Button with nested elements (e.g., icons)."""
         html = '<Button><Icon name="x" /> Close</Button>'
-        from vue_i18n_wrap import wrap_tag_content
+        from i18n_wrap import wrap_tag_content
         result = wrap_tag_content(html, ["Button"])
         # Should skip complex nested content
         self.assertNotIn('__("<Icon', result)
@@ -610,7 +615,7 @@ class TestButtonTextWrapping(unittest.TestCase):
     def test_button_with_label_prop(self):
         """Test Button using :label prop (should not wrap content)."""
         html = '<Button :label="__("Label")">Extra</Button>'
-        from vue_i18n_wrap import wrap_tag_content
+        from i18n_wrap import wrap_tag_content
         result = wrap_tag_content(html, ["Button"])
         # Should not wrap content when label prop exists
         self.assertNotIn('__("Extra")', result)
@@ -624,7 +629,7 @@ class TestButtonTextWrapping(unittest.TestCase):
           <Button>{{ __("Already") }}</Button>
         </div>
         '''
-        from vue_i18n_wrap import wrap_tag_content
+        from i18n_wrap import wrap_tag_content
         result = wrap_tag_content(html, ["Button"])
         self.assertIn('{{ __("Save") }}', result)
         self.assertIn('{{ __("Cancel") }}', result)
@@ -633,7 +638,7 @@ class TestButtonTextWrapping(unittest.TestCase):
     def test_button_case_insensitive(self):
         """Test Button tag name case insensitivity."""
         html = '<button>Click Me</button>'
-        from vue_i18n_wrap import wrap_tag_content
+        from i18n_wrap import wrap_tag_content
         result = wrap_tag_content(html, ["Button"])
         # Should not wrap lowercase HTML button
         self.assertNotIn('__("Click Me")', result)
@@ -641,14 +646,14 @@ class TestButtonTextWrapping(unittest.TestCase):
     def test_custom_component_list(self):
         """Test wrapping custom component list."""
         html = '<CustomButton>Action</CustomButton>'
-        from vue_i18n_wrap import wrap_tag_content
+        from i18n_wrap import wrap_tag_content
         result = wrap_tag_content(html, ["CustomButton"])
         self.assertIn('{{ __("Action") }}', result)
     
     def test_whitespace_only_skipped(self):
         """Test Button with only whitespace."""
         html = '<Button>   \n  </Button>'
-        from vue_i18n_wrap import wrap_tag_content
+        from i18n_wrap import wrap_tag_content
         result = wrap_tag_content(html, ["Button"])
         # Should not wrap whitespace-only
         self.assertNotIn('__("', result)
@@ -700,35 +705,35 @@ class TestToastMessageWrapping(unittest.TestCase):
     
     def test_simple_toast_success(self):
         """Test wrapping simple toast.success() message."""
-        from vue_i18n_wrap import wrap_toast_messages
+        from i18n_wrap import wrap_toast_messages
         code = 'toast.success("Contact created");'
         result = wrap_toast_messages(code)
         self.assertIn('toast.success(__("Contact created"))', result)
     
     def test_simple_toast_error(self):
         """Test wrapping simple toast.error() message."""
-        from vue_i18n_wrap import wrap_toast_messages
+        from i18n_wrap import wrap_toast_messages
         code = 'toast.error("Email should not be empty");'
         result = wrap_toast_messages(code)
         self.assertIn('toast.error(__("Email should not be empty"))', result)
     
     def test_toast_with_single_quotes(self):
         """Test wrapping toast message with single quotes."""
-        from vue_i18n_wrap import wrap_toast_messages
+        from i18n_wrap import wrap_toast_messages
         code = "toast.success('Team created');"
         result = wrap_toast_messages(code)
         self.assertIn("toast.success(__('Team created'))", result)
     
     def test_already_wrapped_toast_skipped(self):
         """Test that already wrapped toast is not double-wrapped."""
-        from vue_i18n_wrap import wrap_toast_messages
+        from i18n_wrap import wrap_toast_messages
         code = 'toast.success(__("Already wrapped"));'
         result = wrap_toast_messages(code)
         self.assertEqual(result.count("__("), 1)
     
     def test_toast_with_variable_skipped(self):
         """Test that toast with variables is skipped."""
-        from vue_i18n_wrap import wrap_toast_messages
+        from i18n_wrap import wrap_toast_messages
         code = 'toast.error(err.messages[0]);'
         result = wrap_toast_messages(code)
         # Should not wrap non-string literals
@@ -736,7 +741,7 @@ class TestToastMessageWrapping(unittest.TestCase):
     
     def test_toast_with_interpolation_skipped(self):
         """Test that template literals with interpolation are skipped."""
-        from vue_i18n_wrap import wrap_toast_messages
+        from i18n_wrap import wrap_toast_messages
         code = 'toast.success(`Role updated to ${newRole}`);'
         result = wrap_toast_messages(code)
         # Should not wrap template literals (our pattern only matches quotes)
@@ -744,7 +749,7 @@ class TestToastMessageWrapping(unittest.TestCase):
     
     def test_multiple_toast_messages(self):
         """Test wrapping multiple toast messages in same file."""
-        from vue_i18n_wrap import wrap_toast_messages
+        from i18n_wrap import wrap_toast_messages
         code = '''
 function save() {
     toast.success("Item saved");
@@ -772,14 +777,14 @@ function save() {
     
     def test_toast_with_special_characters(self):
         """Test toast message with special characters."""
-        from vue_i18n_wrap import wrap_toast_messages
+        from i18n_wrap import wrap_toast_messages
         code = 'toast.success("Contact with email already exists");'
         result = wrap_toast_messages(code)
         self.assertIn('__("Contact with email already exists")', result)
     
     def test_empty_toast_message_skipped(self):
         """Test that empty toast messages are skipped."""
-        from vue_i18n_wrap import wrap_toast_messages
+        from i18n_wrap import wrap_toast_messages
         code = 'toast.success("");'
         result = wrap_toast_messages(code)
         # Should not wrap empty strings
@@ -791,7 +796,7 @@ class TestVueImportInjection(unittest.TestCase):
     
     def test_inject_import_when_needed(self):
         """Test that import is injected when __ is used but import is missing."""
-        from vue_i18n_wrap import _inject_vue_import
+        from i18n_wrap import _inject_vue_import
         vue = '''<template>
   <div :label="__('Text')"></div>
 </template>
@@ -808,7 +813,7 @@ const data = ref(null);
     
     def test_skip_inject_when_import_exists(self):
         """Test that import is not injected if already present."""
-        from vue_i18n_wrap import _inject_vue_import
+        from i18n_wrap import _inject_vue_import
         vue = '''<template>
   <div :label="__('Text')"></div>
 </template>
@@ -823,7 +828,7 @@ const data = ref(null);
     
     def test_skip_inject_when_no_usage(self):
         """Test that import is not injected if __ is not used."""
-        from vue_i18n_wrap import _inject_vue_import
+        from i18n_wrap import _inject_vue_import
         vue = '''<template>
   <div label="Static Text"></div>
 </template>
@@ -836,7 +841,7 @@ import { ref } from "vue";
     
     def test_inject_with_multiline_import(self):
         """Test injection with multiline import statements."""
-        from vue_i18n_wrap import _inject_vue_import
+        from i18n_wrap import _inject_vue_import
         vue = '''<template>
   <div :label="__('Text')"></div>
 </template>
@@ -856,7 +861,7 @@ const data = ref(null);
     
     def test_inject_when_no_imports(self):
         """Test injection when no other imports exist."""
-        from vue_i18n_wrap import _inject_vue_import
+        from i18n_wrap import _inject_vue_import
         vue = '''<template>
   <div :label="__('Text')"></div>
 </template>
@@ -868,7 +873,7 @@ const data = { value: 1 };
     
     def test_no_duplicate_import_in_broken_case(self):
         """Test that we don't create duplicate imports even in edge cases."""
-        from vue_i18n_wrap import _inject_vue_import
+        from i18n_wrap import _inject_vue_import
         # Simulate a broken case where import exists but in wrong place
         vue = '''<template>
   <div :label="__('Text')"></div>
@@ -884,7 +889,7 @@ import { __ } from "@/translation";
     
     def test_inject_preserves_formatting(self):
         """Test that injection preserves original formatting."""
-        from vue_i18n_wrap import _inject_vue_import
+        from i18n_wrap import _inject_vue_import
         vue = '''<template>
   <div :label="__('Text')"></div>
 </template>
@@ -992,6 +997,75 @@ export default {
         # Should not wrap fieldname or fieldtype
         self.assertIn('"subject"', result)
         self.assertIn('"Data"', result)
+
+
+class TestPAndSpanWrapping(unittest.TestCase):
+    """Test specialized <p> and <span> wrappers."""
+
+    def test_wrap_p_simple(self):
+        html = '<p>Hello World</p>'
+        result = wrap_p_content(html)
+        self.assertIn('{{ __("Hello World") }}', result)
+
+    def test_wrap_span_simple(self):
+        html = '<span>Status</span>'
+        result = wrap_span_content(html)
+        self.assertIn('{{ __("Status") }}', result)
+
+    def test_wrap_p_nested(self):
+        html = '<p>Hello <a href="#">world</a> !</p>'
+        result = wrap_p_content(html)
+        self.assertIn('{{ __("Hello") }}', result)
+        self.assertIn('<a href="#">{{ __("world") }}</a>', result)
+        self.assertIn('{{ __("!") }}', result)
+
+
+class TestImportModuleOption(unittest.TestCase):
+    """Test injecting imports with a custom module path."""
+
+    def test_ts_inject_custom_module(self):
+        src = 'const m = { label: "Hello" }; __("Hi");'
+        out = _inject_ts_import(src, import_module='@/i18n')
+        self.assertIn('import { __ } from "@/i18n";', out)
+
+
+class TestIgnoreDefaults(unittest.TestCase):
+    """Test default ignore helpers."""
+
+    def test_is_ignored_backups(self):
+        base = pathlib.Path('/tmp/base')
+        path = base / '.i18n_backups' / 'run-123' / 'x.vue'
+        self.assertTrue(isinstance(base, pathlib.Path))
+        self.assertTrue(isinstance(path, pathlib.Path))
+        # Default ignore pattern should match this path
+        self.assertTrue(is_ignored(base, path, ["**/.i18n_backups/**"]))
+
+
+class TestReporting(unittest.TestCase):
+    """Test JSON reporting of wrapped strings per file."""
+
+    def test_report_json_created_in_dry_run(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            base = pathlib.Path(tmpdir)
+            # Create a simple Vue file with attributes and <p> content
+            f = base / "x.vue"
+            f.write_text('<template><div label="Click"></div><p>Hello World</p></template>', encoding="utf-8")
+
+            ap = build_arg_parser()
+            args = ap.parse_args([
+                "--target", str(base),
+                "--dry-run",
+            ])
+            rc = run_cli(args)
+            self.assertEqual(rc, 0)
+
+            # Verify report file exists and contains our strings
+            reports_dir = base / ".i18n_reports"
+            files = list(reports_dir.glob("wrap-report-*.json"))
+            self.assertTrue(files, "No report file generated")
+            data = files[-1].read_text(encoding="utf-8")
+            self.assertIn("Click", data)
+            self.assertIn("Hello World", data)
 
 
 # Run tests if executed directly

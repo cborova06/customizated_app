@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Safe prebuild wrapper for vue_i18n_wrap.py placed inside brv_license_app
+# Safe prebuild wrapper for i18n_wrap.py placed inside brv_license_app
 # Flow:
 # 1) Run dry-run + diff and capture output
 # 2) If diffs present, run actual script to apply changes (backups are created by the script)
@@ -10,13 +10,13 @@ set -euo pipefail
 # Config (edit if needed or override via environment)
 TARGET="${TARGET:-desk/src}"
 ATTRS="${ATTRS:-label,title,placeholder,tooltip,aria-label}"
-# Wrap tag content: added h1-h6 for heading content, p and a for general text
-WRAP_TAGS="${WRAP_TAGS:-p,a,h1,h2,h3,h4,h5,h6}"
+# Wrap tag content: added h1-h6 for heading content, p, span and a for general text
+WRAP_TAGS="${WRAP_TAGS:-p,span,a,h1,h2,h3,h4,h5,h6}"
 MAX_FILE_SIZE=${MAX_FILE_SIZE:-2097152}
 PY_TARGET="${PY_TARGET:-helpdesk}"
-PY_KEYS="${PY_KEYS:-label,title,subject,options,placeholder,tooltip,aria-label}"
+PY_KEYS="${PY_KEYS:-label,title,description}"
 SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
-WRAP="$SCRIPT_DIR/vue_i18n_wrap.py"
+WRAP="$SCRIPT_DIR/i18n_wrap.py"
 IGN1="src/pages/MobileNotifications.vue"
 IGN2="src/pages/knowledge-base/*.vue"
 
@@ -75,7 +75,7 @@ if [ ! -x "$(command -v python3)" ]; then
 fi
 
 if [ ! -f "$WRAP" ]; then
-    echo "vue_i18n_wrap.py not found at $WRAP" >&2
+    echo "i18n_wrap.py not found at $WRAP" >&2
     exit 2
 fi
 
