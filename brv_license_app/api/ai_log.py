@@ -130,7 +130,10 @@ def write(
         if error_message:
             doc.error_message = cstr(error_message)
 
+        # Insert atomically; return created name for observability
         doc.insert(ignore_permissions=True)
         frappe.db.commit()
+        return doc.name
     except Exception as e:
-        frappe.log_error(f"ai_log.write: {e}", "HelpdeskAI")
+        frappe.log_error(f"ai_log.write failed: {e}", "HelpdeskAI")
+        raise

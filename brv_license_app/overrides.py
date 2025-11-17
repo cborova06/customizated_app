@@ -83,6 +83,11 @@ def enforce_request():
         return
 
     path = frappe.request.path if getattr(frappe, "request", None) else ""
+    referer = ""
+    try:
+        referer = frappe.request.headers.get("Referer", "") if getattr(frappe, "request", None) else ""
+    except Exception:
+        referer = ""
 
     # 0) Statik dosyalar / allowlist
     if _is_allowlisted(path):
@@ -92,6 +97,10 @@ def enforce_request():
     if path and (path.startswith("/app/license-settings") or path.startswith("/app/License%20Settings")):
         return
     if _is_license_settings_access() or _is_license_settings_write_intent():
+        return
+    # License Settings sayfasından (Referer) gelen TÜM arka plan çağrılarını da serbest bırak
+    # Böylece sayfa render olurken gerekli XHR'lar engellenmez ve istemci logout olmaz
+    if referer and ("/app/license-settings" in referer or "/app/License%20Settings" in referer):
         return
 
     # 2) Lisans durumunu çek

@@ -42,7 +42,23 @@
     }
   }
 
+  function onLicenseSettingsRoute() {
+    try {
+      // Prefer client-side route if available
+      if (window.frappe && frappe.get_route) {
+        const r = frappe.get_route();
+        if (Array.isArray(r) && r[0] === 'Form' && r[1] === 'License Settings') return true;
+      }
+      // Fallback: check URL path
+      const p = (window.location && window.location.pathname) || '';
+      if (p.indexOf('/app/license-settings') === 0 || p.indexOf('/app/License%20Settings') === 0) return true;
+    } catch (e) {}
+    return false;
+  }
+
   async function forceLogout(reason) {
+    // License Settings ekranındayken asla otomatik logout yapma
+    if (onLicenseSettingsRoute()) return;
     try {
       await frappe.call("logout");
     } catch (e) {
@@ -60,6 +76,7 @@
     const check = async () => {
       const now = new Date();
       if (now >= until) {
+        if (onLicenseSettingsRoute()) return; // lisans ekranında kalmaya devam et
         await forceLogout("license_expired");
       }
     };

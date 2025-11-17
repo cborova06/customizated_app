@@ -863,7 +863,9 @@ def log_ai_interaction(
     request: str | dict | None = None,
     response: str | dict | None = None,
 ):
-    """Gerçek AI etkileşimini loglar. Sadece 3 parametre alır: ticket, request, response."""
+    """Gerçek AI etkileşimini loglar. Sadece 3 parametre alır: ticket, request, response.
+    Başarılıysa created doc name döner; hata durumunda ok=False ve error içerir.
+    """
     def _ensure_dict(v):
         if v is None:
             return {}
@@ -884,8 +886,12 @@ def log_ai_interaction(
 
     # Import locally to avoid coupling ingest to logging except for this endpoint
     from brv_license_app.api.ai_log import write as ai_log_write
-    ai_log_write(ticket=ticket, request=req, response=resp)
-    return {"ok": True}
+    try:
+        name = ai_log_write(ticket=ticket, request=req, response=resp)
+        return {"ok": True, "name": name}
+    except Exception as e:
+        frappe.log_error(f"log_ai_interaction failed: {e}", "HelpdeskAI")
+        return {"ok": False, "error": str(e)}
 
 # ---- Genel/Esnek uç nokta --------------------------------------------------
 

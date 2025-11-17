@@ -44,13 +44,15 @@ license_allowlist_paths = [
     "/api/method/frappe.client.get",
     "/api/method/frappe.client.get_value",
     "/api/method/frappe.desk.search.search_link",
-    "/socket.io",
     # Desk default fetches (read-only) needed for shell to render
     "/api/method/frappe.desk.doctype.event.event.",
     "/api/method/frappe.desk.doctype.notification_log.notification_log.",
     "/assets/",
     "/app/license-settings",  # License Settings sayfası
     "/api/method/brv_license_app.api.license.healthz",
+    
+    # AI telemetry/logging (non-critical; allow even under lock so troubleshooting works)
+    "/api/method/brv_license_app.api.ingest.log_ai_interaction",
 
     # Form yükleme/kaydetme
     "/api/method/frappe.desk.form.load.getdoc",
