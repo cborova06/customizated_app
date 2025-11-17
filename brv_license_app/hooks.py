@@ -39,9 +39,12 @@ license_allowlist_paths = [
     "/api/method/ping",
     "/api/method/frappe.boot.get_bootinfo",
     "/api/method/frappe.desk.desk.get_desk_sidebar",
+    "/api/method/frappe.desk.desktop.get_workspace_sidebar_items",
     "/api/method/frappe.desk.form.meta.get_meta",
     "/api/method/frappe.client.get",
     "/api/method/frappe.client.get_value",
+    "/api/method/frappe.desk.search.search_link",
+    "/socket.io",
     # Desk default fetches (read-only) needed for shell to render
     "/api/method/frappe.desk.doctype.event.event.",
     "/api/method/frappe.desk.doctype.notification_log.notification_log.",
