@@ -42,6 +42,9 @@ license_allowlist_paths = [
     "/api/method/frappe.desk.form.meta.get_meta",
     "/api/method/frappe.client.get",
     "/api/method/frappe.client.get_value",
+    # Desk default fetches (read-only) needed for shell to render
+    "/api/method/frappe.desk.doctype.event.event.",
+    "/api/method/frappe.desk.doctype.notification_log.notification_log.",
     "/assets/",
     "/app/license-settings",  # License Settings sayfası
     "/api/method/brv_license_app.api.license.healthz",
