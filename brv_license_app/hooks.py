@@ -36,6 +36,8 @@ license_allowlist_paths = [
     "/api/method/login",
     "/api/method/logout",
     "/api/method/ping",
+    "/api/method/frappe.boot.get_bootinfo",
+    "/api/method/frappe.desk.desk.get_desk_sidebar",
     "/assets/",
     "/app/license-settings",  # License Settings sayfası
     "/api/method/brv_license_app.api.license.healthz",

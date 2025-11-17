@@ -5,7 +5,7 @@ import json
 
 import frappe
 from frappe.model.document import Document
-from frappe.utils import now_datetime, get_datetime
+from frappe.utils import now_datetime, get_datetime, add_to_date
 import re
 
 from brv_license_app.license_client import (
@@ -108,7 +108,8 @@ def activate_license(license_key: Optional[str] = None, token: Optional[str] = N
             doc.status = STATUS_EXPIRED
             doc.reason = msg or "License expired"
             if not getattr(doc, "grace_until", None):
-                doc.grace_until = now_datetime()
+                # 24 saatlik tolerans penceresi
+                doc.grace_until = add_to_date(now_datetime(), hours=24)
             doc.last_validated = now_datetime()
 
             # son hatayı debug için sakla (opsiyonel)
@@ -318,7 +319,8 @@ def _is_expired_error(msg: str) -> bool:
 def _mark_expired(doc: Document, reason: str) -> None:
     doc.status = STATUS_EXPIRED
     doc.reason = reason or "License expired"
-    doc.grace_until = now_datetime()
+    # 24 saatlik tolerans penceresi
+    doc.grace_until = add_to_date(now_datetime(), hours=24)
 
 def _set_if_exists(doc: Document, fieldname: str, value: Any) -> None:
     try:
@@ -452,7 +454,8 @@ def _apply_validation_update(doc: Document, data: Dict[str, Any]) -> None:
             doc.status = STATUS_EXPIRED
             doc.reason = doc.reason or "License expired"
             if not getattr(doc, "grace_until", None):
-                doc.grace_until = now_datetime()
+                # 24 saatlik tolerans penceresi
+                doc.grace_until = add_to_date(now_datetime(), hours=24)
             doc.last_validated = now_datetime()
             LOG.info("apply_validation_update: expires_at in past → set EXPIRED (keep grace)")
             return
