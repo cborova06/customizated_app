@@ -25,6 +25,7 @@ scheduler_events = {
 app_include_js = [
     "/assets/brv_license_app/js/license_guard.js",
     "/assets/brv_license_app/js/license_banner.js",
+    "/assets/brv_license_app/js/about_override.js",
 ]
 
 # Oturum açılışında istemciye lisans özetini gönder
