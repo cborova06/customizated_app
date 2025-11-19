@@ -31,6 +31,9 @@ app_include_js = [
 # Oturum açılışında istemciye lisans özetini gönder
 boot_session = "brv_license_app.overrides.boot_session"
 
+# Her migrate sonrasında site_config.json içine lisans/e-posta varsayılanlarını uygula
+after_migrate = "brv_license_app.utils.site_config.ensure_license_site_config"
+
 # İzin/allowlist — License Settings'in çalışabilmesi için gerekli standart endpointler
 license_allowlist_paths = [
     "/app",  # Desk shell (SPA index) – gerekli
