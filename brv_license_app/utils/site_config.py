@@ -33,10 +33,13 @@ def ensure_license_site_config() -> None:
     sites_dir = _sites_root()
     updated_any = False
 
+    # Hangi domain uzantılarında lisans ayarları otomatik uygulansın?
+    allowed_suffixes = (".com", ".com.tr", ".net", ".org")
+
     for site_dir in sites_dir.iterdir():
         if not site_dir.is_dir():
             continue
-        if not site_dir.name.endswith(".com"):
+        if not site_dir.name.endswith(allowed_suffixes):
             continue
 
         cfg_path = site_dir / "site_config.json"
@@ -78,4 +81,3 @@ def ensure_license_site_config() -> None:
 
     if not updated_any:
         license_logger.debug("No site_config.json changes needed for *.com sites")
-
